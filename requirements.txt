@@ -1,0 +1,4 @@
+websockets
+numpy
+torch
+silero-vad
