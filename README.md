@@ -21,8 +21,8 @@ This is a Python implementation of a WebSocket server that uses Silero VAD (Voic
 
 1. Clone this repository:
    ```
-   git clone <repository-url>
-   cd <repository-directory>
+   git clone https://github.com/Guide-Me-Tech/silero-vad-websockets.git
+   cd https://github.com/Guide-Me-Tech/silero-vad-websockets.git
    ```
 
 2. Install the required dependencies:
@@ -71,8 +71,8 @@ The server responds with JSON messages in the following format:
   "speech": true,
   "time_stamps": [
     {
-      "speech_start_at": 0.15,
-      "speech_end_at": 1.23
+      "start": 0.15,
+      "end": 1.23
     }
   ]
 }
