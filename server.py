@@ -222,7 +222,7 @@ class Client:
                 "audio/wav",
             )  # Change MIME type accordingly
         }
-        BASE_URL = f"http://{os.getenv('TRANSCRIBER_HOST')}:{os.getenv('TRANSCRIBER_PORT')}/transcribe/{self.language}"
+        BASE_URL = f"http://{os.getenv('TRANSCRIBER_HOST')}:{os.getenv('TRANSCRIBER_PORT')}/{self.language}"
         headers = {
             "Accept": "application/json",
         }
