@@ -264,7 +264,9 @@ class Client:
             speech_ongoing, segments = self.vad.memory_vad_check(self.buffer)
         except NoSpeechDetected:
             await self.websocket.send(
-                json.dumps({"speech": "no_speech", "time_stamps": []})
+                json.dumps(
+                    {"speech": "no_speech", "time_stamps": [], "transcription": None}
+                )
             )
             return
         transcription = None
