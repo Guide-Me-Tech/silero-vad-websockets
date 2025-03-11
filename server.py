@@ -226,7 +226,10 @@ class Client:
             )  # Change MIME type accordingly
         }
         BASE_URL = f"http://{os.getenv('TRANSCRIBER_HOST')}:{os.getenv('TRANSCRIBER_PORT')}/transcribe/{self.language}"
-        headers = {"Content-Type": "multipart/form-data"}
+        headers = {
+            "Content-Type": "multipart/form-data",
+            "Accept": "application/json",
+        }
         response = requests.post(BASE_URL, headers=headers, files=files)
         return response.json()
 
