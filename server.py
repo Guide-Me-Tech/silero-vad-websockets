@@ -214,7 +214,7 @@ class Client:
             wav_file.setframerate(sample_rate)  # Sample rate (e.g., 16kHz)
             wav_file.writeframes(self.buffer)  # Write raw PCM data
 
-       BASE_URL = f"http://{os.getenv('TRANSCRIBER_HOST')}:{os.getenv('TRANSCRIBER_PORT')}/{self.language}"
+        BASE_URL = f"http://{os.getenv('TRANSCRIBER_HOST')}:{os.getenv('TRANSCRIBER_PORT')}/{self.language}"
         # headers = {
         #     "Accept": "application/json",
         # }
