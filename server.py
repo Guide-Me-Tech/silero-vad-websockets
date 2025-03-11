@@ -215,9 +215,6 @@ class Client:
             wav_file.writeframes(self.buffer)  # Write raw PCM data
 
         BASE_URL = f"http://{os.getenv('TRANSCRIBER_HOST')}:{os.getenv('TRANSCRIBER_PORT')}/{self.language}"
-        # headers = {
-        #     "Accept": "application/json",
-        # }
 
         response = requests.post(BASE_URL, data=file_obj.getvalue())
         return response.json()
@@ -264,7 +261,9 @@ class Client:
             speech_ongoing, segments = self.vad.memory_vad_check(self.buffer)
         except NoSpeechDetected:
             await self.websocket.send(
-                json.dumps({"speech": "no_speech", "time_stamps": []})
+                json.dumps(
+                    {"speech": "no_speech", "time_stamps": [], "transcription": None}
+                )
             )
             return
         transcription = None
