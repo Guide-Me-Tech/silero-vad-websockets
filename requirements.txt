@@ -2,3 +2,5 @@ websockets
 numpy
 torch
 silero-vad
+requests
+python-dotenv

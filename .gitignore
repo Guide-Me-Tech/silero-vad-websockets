@@ -1,3 +1,5 @@
 input.wav
 .venv
 test.ipynb
+.env
+.env.dev
