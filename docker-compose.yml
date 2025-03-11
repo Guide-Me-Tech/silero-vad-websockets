@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: dockerfiles/Dockerfile
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      # Add any environment variables your application needs
+      - PYTHONUNBUFFERED=1 
+      - ENVIRONMENT=prod

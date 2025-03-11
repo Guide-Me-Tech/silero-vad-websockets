@@ -13,6 +13,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
-
+# port 8555:8070
 # Command to run the application
 CMD ["python", "server.py"]

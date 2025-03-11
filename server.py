@@ -323,13 +323,13 @@ async def main():
     async with websockets.serve(
         serve_websocket,
         "0.0.0.0",
-        8070,
+        8555,
         ping_interval=PING_INTERVAL,
         ping_timeout=PING_TIMEOUT,
         max_size=MAX_MESSAGE_SIZE,
         origins=None,  # Allow connections from any origin
     ):
-        logger.info("WebSocket server started on port 8070")
+        logger.info("WebSocket server started on port 8555")
         await asyncio.Future()  # Run forever
 
 
