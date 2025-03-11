@@ -203,9 +203,6 @@ class Client:
         return float(sample) / 32768.0
 
     def transcribe(self):
-
-        # Your file bytes (e.g., from memory, another API, or in-memory processing)
-
         # Convert bytes to a file-like object
         num_channels = 1
         sample_width = 2
@@ -227,7 +224,6 @@ class Client:
         }
         BASE_URL = f"http://{os.getenv('TRANSCRIBER_HOST')}:{os.getenv('TRANSCRIBER_PORT')}/transcribe/{self.language}"
         headers = {
-            "Content-Type": "multipart/form-data",
             "Accept": "application/json",
         }
         response = requests.post(BASE_URL, headers=headers, files=files)
