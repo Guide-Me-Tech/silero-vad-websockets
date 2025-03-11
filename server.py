@@ -214,19 +214,12 @@ class Client:
             wav_file.setframerate(sample_rate)  # Sample rate (e.g., 16kHz)
             wav_file.writeframes(self.buffer)  # Write raw PCM data
 
-        # Define the filename and content type
-        files = {
-            "file": (
-                "input.wav",
-                file_obj,
-                "audio/wav",
-            )  # Change MIME type accordingly
-        }
-        BASE_URL = f"http://{os.getenv('TRANSCRIBER_HOST')}:{os.getenv('TRANSCRIBER_PORT')}/transcribe/{self.language}"
-        headers = {
-            "Accept": "application/json",
-        }
-        response = requests.post(BASE_URL, headers=headers, files=files)
+        BASE_URL = f"http://{os.getenv('TRANSCRIBER_HOST')}:{os.getenv('TRANSCRIBER_PORT')}/{self.language}"
+        # headers = {
+        #     "Accept": "application/json",
+        # }
+
+        response = requests.post(BASE_URL, data=file_obj.getvalue())
         return response.json()
 
     async def handle_messages(self):
