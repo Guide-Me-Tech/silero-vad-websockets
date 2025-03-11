@@ -290,7 +290,7 @@ class Client:
         result = {
             "speech": speech_ongoing,
             "time_stamps": segments,
-            transcription: transcription,
+            "transcription": transcription,
         }
 
         await self.websocket.send(json.dumps(result))

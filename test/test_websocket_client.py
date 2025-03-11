@@ -92,7 +92,7 @@ async def main():
         logger.error(f"Audio file not found: {audio_path}")
         return
     
-    uri = f"ws://{args.host}:{args.port}"
+    uri = f"ws://{args.host}:{args.port}/ws_vad"
     logger.info(f"Connecting to {uri}")
     
     try:
