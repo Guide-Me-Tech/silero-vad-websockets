@@ -4,3 +4,4 @@ torch
 silero-vad
 requests
 python-dotenv
+aiohttp
