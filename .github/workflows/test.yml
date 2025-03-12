@@ -30,4 +30,4 @@ jobs:
 
       - name: Run tests
         run: |
-          pytest test_websocket_client.py
+          python test_websocket_client.py
