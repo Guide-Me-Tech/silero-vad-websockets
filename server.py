@@ -14,6 +14,7 @@ import requests
 import io
 from dotenv import load_dotenv
 from aiohttp import web
+import aiohttp
 
 # Configure logging
 logging.basicConfig(
@@ -203,22 +204,36 @@ class Client:
         """Convert int16 audio sample to float32."""
         return float(sample) / 32768.0
 
-    def transcribe(self):
+    async def transcribe(self):
         # Convert bytes to a file-like object
         num_channels = 1
         sample_width = 2
         sample_rate = 16000
         file_obj = io.BytesIO()
-        with wave.open(file_obj, "wb") as wav_file:
-            wav_file.setnchannels(num_channels)  # 1 = mono, 2 = stereo
-            wav_file.setsampwidth(sample_width)  # 2 bytes for 16-bit PCM
-            wav_file.setframerate(sample_rate)  # Sample rate (e.g., 16kHz)
-            wav_file.writeframes(self.buffer)  # Write raw PCM data
+
+        # Run potentially blocking I/O operations in a thread pool
+        loop = asyncio.get_event_loop()
+
+        # Create WAV file
+        await loop.run_in_executor(None, lambda: self._create_wav_file(file_obj))
+
+        # Reset file position
+        file_obj.seek(0)
 
         BASE_URL = f"http://{os.getenv('TRANSCRIBER_HOST')}:{os.getenv('TRANSCRIBER_PORT')}/{self.language}"
 
-        response = requests.post(BASE_URL, data=file_obj.getvalue())
-        return response.json()
+        # Make HTTP request in a non-blocking way
+        async with aiohttp.ClientSession() as session:
+            async with session.post(BASE_URL, data=file_obj.getvalue()) as response:
+                result = await response.json()
+                return result
+
+    def _create_wav_file(self, file_obj):
+        with wave.open(file_obj, "wb") as wav_file:
+            wav_file.setnchannels(1)  # 1 = mono, 2 = stereo
+            wav_file.setsampwidth(2)  # 2 bytes for 16-bit PCM
+            wav_file.setframerate(16000)  # Sample rate (e.g., 16kHz)
+            wav_file.writeframes(self.buffer)  # Write raw PCM data
 
     async def handle_messages(self):
         """Process incoming messages from the client."""
@@ -278,7 +293,7 @@ class Client:
         transcription = None
         # if speech_ongoing is False, send audio to transcribers
         if not speech_ongoing:
-            transcription = self.transcribe()
+            transcription = await self.transcribe()
 
         # Log segments
         # for segment in segments:
@@ -351,6 +366,7 @@ async def main():
         ping_interval=PING_INTERVAL,
         ping_timeout=PING_TIMEOUT,
         max_size=MAX_MESSAGE_SIZE,
+        max_queue=64,  # Limit the connection queue
         origins=None,  # Allow connections from any origin
     ):
         logger.info("WebSocket server started on port 8555")
