@@ -13,6 +13,7 @@ import wave
 import requests
 import io
 from dotenv import load_dotenv
+from aiohttp import web
 
 # Configure logging
 logging.basicConfig(
@@ -225,28 +226,36 @@ class Client:
             await self.hub.register(self)
 
             async for message in self.websocket:
-                if isinstance(message, bytes):
-                    # Process audio data
-                    self.buffer.extend(message)
+                try:
+                    if isinstance(message, bytes):
+                        # Process audio data
+                        self.buffer.extend(message)
 
-                    # Process the buffer
-                    await self.process_audio()
-                else:
-                    logger.warning(f"Received non-binary message: {message}")
+                        # Process the buffer
+                        await self.process_audio()
+                    else:
+                        logger.warning(f"Received non-binary message: {message}")
+                except Exception as e:
+                    logger.error(f"Error processing message: {e}")
+                    # Continue processing other messages
         except websockets.exceptions.ConnectionClosed:
             logger.info("Connection closed")
+        except Exception as e:
+            logger.error(f"Unexpected error in handle_messages: {e}")
         finally:
+            try:
+                # Save buffer to a file
+                audio_data = np.frombuffer(self.buffer, dtype=np.int16)
 
-            # Save buffer to a file
-            # Convert buffer to numpy array
-            audio_data = np.frombuffer(self.buffer, dtype=np.int16)
+                # save to wave
+                with wave.open("input.wav", "wb") as f:
+                    f.setnchannels(1)
+                    f.setsampwidth(2)
+                    f.setframerate(16000)
+                    f.writeframes(audio_data)
+            except Exception as e:
+                logger.error(f"Error saving audio: {e}")
 
-            # save to wave
-            with wave.open("input.wav", "wb") as f:
-                f.setnchannels(1)
-                f.setsampwidth(2)
-                f.setframerate(16000)
-                f.writeframes(audio_data)
             await self.hub.unregister(self)
 
     async def process_audio(self):
@@ -289,26 +298,50 @@ class Client:
 
 from urllib.parse import parse_qs, urlparse
 
+# Create a single VAD instance at startup instead of per-connection
+global_vad = None
+
+
+async def initialize_vad():
+    global global_vad
+    global_vad = SileroVAD(threshold=0.5, min_silence_duration_ms=100, speech_pad_ms=30)
+    logger.info("Global VAD model initialized")
+
 
 async def serve_websocket(websocket: websockets.ServerConnection):
     """Handle a WebSocket connection."""
     logger.info(f"New WebSocket connection from {websocket.remote_address}")
     query_params = parse_qs(urlparse(websocket.request.path).query)
-    # Create VAD instance
+    # Use the global VAD instance
+    global global_vad
     print("Params: ", query_params)
     language = query_params.get("language", ["uz"])[0]
-    vad = SileroVAD(threshold=0.5, min_silence_duration_ms=100, speech_pad_ms=30)
 
-    # Create client
-    client = Client(websocket, hub, vad, language)
+    # Create client with the global VAD instance
+    client = Client(websocket, hub, global_vad, language)
     # Handle client messages
     await client.handle_messages()
+
+
+async def health_check():
+    """Simple health check endpoint."""
+    return {"status": "ok"}
+
+
+async def http_handler(request):
+    """Handle HTTP requests."""
+    if request.path == "/health":
+        return web.json_response(await health_check())
+    return web.Response(status=404)
 
 
 async def main():
     """Start the WebSocket server."""
     global hub
     hub = Hub()
+
+    # Initialize the VAD model once at startup
+    await initialize_vad()
 
     # Start WebSocket server
     async with websockets.serve(
