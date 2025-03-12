@@ -1,5 +1,7 @@
 # Silero VAD WebSocket Server
 
+[![Python Tests](https://github.com/Guide-Me-Tech/silero-vad-websockets/actions/workflows/test.yml/badge.svg)](https://github.com/Guide-Me-Tech/silero-vad-websockets/actions/workflows/test.yml)
+
 This is a Python implementation of a WebSocket server that uses Silero VAD (Voice Activity Detection) to detect speech in audio streams. The server receives audio data from clients via WebSocket connections, processes it using the Silero VAD model, and sends back the speech detection results.
 
 ## Features
@@ -90,6 +92,34 @@ You can customize the VAD parameters in the `SileroVAD` class:
 - **WebSocket Connection Issues**: Make sure the WebSocket server is running and the port is accessible. Check browser console for errors.
 - **No Audio Detection**: Ensure your microphone is working and properly configured in your browser.
 - **Model Loading Errors**: The first time you run the server, it needs internet access to download the model.
+
+## Testing
+
+This project includes automated tests to ensure functionality works as expected.
+
+### Running Tests Locally
+
+To run the tests locally:
+
+```bash
+# Install pytest if you haven't already
+pip install pytest
+
+# Run the tests
+pytest test/test_websocket_client.py -v
+```
+
+### Continuous Integration
+
+This project uses GitHub Actions for continuous integration. The workflow automatically runs tests on every push to the main branch and on pull requests.
+
+The CI workflow:
+1. Sets up a Python environment
+2. Installs all dependencies
+3. Creates necessary environment variables
+4. Runs the test suite
+
+You can see the test results in the Actions tab of the GitHub repository.
 
 ## License
 
