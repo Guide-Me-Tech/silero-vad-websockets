@@ -3,3 +3,10 @@ input.wav
 test.ipynb
 .env
 .env.dev
+*.mp3
+*.wav
+*.m4a
+*.ogg
+*.flac
+*.aac
+*.webm
