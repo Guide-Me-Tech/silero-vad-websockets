@@ -30,6 +30,20 @@ PING_INTERVAL = 30  # Seconds
 PING_TIMEOUT = 60  # Seconds
 
 
+
+
+def timer_decorator(func):
+    """Decorator to measure the execution time of a function."""
+    async def wrapper(*args, **kwargs):
+        start_time = asyncio.get_event_loop().time()
+        result = await func(*args, **kwargs)
+        end_time = asyncio.get_event_loop().time()
+        execution_time = end_time - start_time
+        logger.info(f"Function {func.__name__} executed in {execution_time:.4f} seconds")
+        return result
+    return wrapper
+
+
 def load_envs(env_type: str = "dev"):
     if env_type == "dev":
         load_dotenv(".env.dev")
@@ -187,8 +201,55 @@ class Hub:
         if client in self.clients:
             self.clients.remove(client)
             logger.info(f"Client unregistered. Total clients: {len(self.clients)}")
+from pydantic import BaseModel
+from google import genai
+
+gemini_api_key = os.environ.get("GOOGLE_API_KEY", "AIzaSyAoBR32ZZsXqXLZLhbUxg3R0Eb3xm1Eqsw")
+class LLMTranscription(BaseModel):
+    transcription: str    
+    def to_dict(self):
+        return self.model_dump()
+
+async def  transcribe_with_gemini(audio_file_path, language):
+    """
+    Transcribe audio using Google's Gemini model
+    
+    Parameters:
+    audio_file_path (str): Path to the audio file
+    
+    Returns:
+    Result: Object containing transcription and usage data
+    """
+    client = genai.Client(api_key=gemini_api_key)
+    myfile = client.files.upload(file=audio_file_path)
+    if language == "uz":
+        prompt = f'Generate a transcript of the speech. Language is Uzbek. Output in latin characters.'
+    elif language == "en":
+        prompt = f'Generate a transcript of the speech. Language is English. Output in latin characters.'
+    elif language == "ru":
+        prompt = f'Generate a transcript of the speech. Language is Russian.'
+    else:
+        prompt = f'Generate a transcript of the speech. Language is {language}.'
+
+    response = client.models.generate_content(
+        model='gemini-2.0-flash',
+        contents=[prompt, myfile],
+        config={
+            'response_mime_type': 'application/json',
+            'response_schema': LLMTranscription,
+        },
+    )
+    print(response.parsed)
+    try:
+        return response.parsed
+    except Exception as e:
+        logger.error(f"Error transcribing with Gemini: {e}")
+        return None
+    
 
 
+
+from uuid import uuid4
 class Client:
     """Represents a WebSocket client connection."""
 
@@ -197,6 +258,8 @@ class Client:
         self.hub = hub
         self.vad = vad
         self.buffer = bytearray()
+        self.buffer_size = 0
+        self.last_buffer_size_used = 0
         self.language = language
 
     @staticmethod
@@ -219,14 +282,34 @@ class Client:
 
         # Reset file position
         file_obj.seek(0)
+        # save file
+        idx = uuid4()
+        filename = f"{idx}.wav"
+        with open(filename, "wb") as f:
+            f.write(file_obj.getvalue())
 
-        BASE_URL = f"http://{os.getenv('TRANSCRIBER_HOST')}:{os.getenv('TRANSCRIBER_PORT')}/{self.language}"
+        # BASE_URL = f"http://{os.getenv('TRANSCRIBER_HOST')}:{os.getenv('TRANSCRIBER_PORT')}/{self.language}"
 
-        # Make HTTP request in a non-blocking way
-        async with aiohttp.ClientSession() as session:
-            async with session.post(BASE_URL, data=file_obj.getvalue()) as response:
-                result = await response.json()
-                return result
+        # # Make HTTP request in a non-blocking way
+        # async with aiohttp.ClientSession() as session:
+        #     async with session.post(BASE_URL, data=file_obj.getvalue()) as response:
+        #         result = await response.json()
+        #         return result
+        result = await transcribe_with_gemini(filename, self.language)
+        os.remove(filename)
+        try:
+            output_format = {
+                "status": "completed",
+                "full_text": result.transcription
+            }
+        except Exception as e:
+            logger.error(f"Error parsing result: {e}")
+            output_format = {
+                "status": "failed",
+                "full_text": None
+            }
+        return output_format
+        
 
     def _create_wav_file(self, file_obj):
         with wave.open(file_obj, "wb") as wav_file:
@@ -245,9 +328,29 @@ class Client:
                     if isinstance(message, bytes):
                         # Process audio data
                         self.buffer.extend(message)
-
+                        self.buffer_size += len(message)
+                        print("Buffer size: ", self.buffer_size)
+                        print("Last buffer size used: ", self.last_buffer_size_used)
                         # Process the buffer
-                        await self.process_audio()
+                        if self.last_buffer_size_used < self.buffer_size:
+                            result = await self.process_audio()
+                            if result == "close":
+                                self.buffer = bytearray()
+                                self.buffer_size = 0
+                                self.last_buffer_size_used = 0
+                    elif isinstance(message, str):
+                        if message == "STOP":
+                            transcription = await self.transcribe()
+                            await self.websocket.send(json.dumps(
+                                {
+                                    "speech": False,
+                                    "time_stamps": [],
+                                    "transcription": transcription,
+                                }
+                            ))
+                            self.buffer = bytearray()
+                            self.buffer_size = 0
+                            self.last_buffer_size_used = 0
                     else:
                         logger.warning(f"Received non-binary message: {message}")
                 except Exception as e:
@@ -276,10 +379,8 @@ class Client:
     async def process_audio(self):
         """Process audio data in the buffer and run VAD."""
         if len(self.buffer) < 2:  # Need at least one int16 sample
-            return
-
+            return None
         logger.info(f"Buffer length: {len(self.buffer)} bytes")
-
         # Run VAD detection
         try:
             speech_ongoing, segments = self.vad.memory_vad_check(self.buffer)
@@ -289,27 +390,27 @@ class Client:
                     {"speech": "no_speech", "time_stamps": [], "transcription": None}
                 )
             )
-            return
+            return None
         transcription = None
         # if speech_ongoing is False, send audio to transcribers
+        self.last_buffer_size_used = self.buffer_size
         if not speech_ongoing:
             transcription = await self.transcribe()
 
-        # Log segments
-        # for segment in segments:
-        #     logger.info(f"Speech starts at {segment.speech_start_at:.2f}s")
-        #     if segment.speech_end_at is not None:
-        #         logger.info(f"Speech ends at {segment.speech_end_at:.2f}s")
-
+        
         # Send results back to client
         result = {
             "speech": speech_ongoing,
             "time_stamps": segments,
             "transcription": transcription,
         }
-
+        print("Sending result: ", result)
+        
         await self.websocket.send(json.dumps(result))
-
+        if transcription is not None:
+            print("Closing connection because of speech stopped")
+            return "close" # Add return statement to stop processing
+        print("Connection closed")
 
 from urllib.parse import parse_qs, urlparse
 
@@ -331,7 +432,6 @@ async def serve_websocket(websocket: websockets.ServerConnection):
     global global_vad
     print("Params: ", query_params)
     language = query_params.get("language", ["uz"])[0]
-
     # Create client with the global VAD instance
     client = Client(websocket, hub, global_vad, language)
     # Handle client messages
@@ -362,7 +462,7 @@ async def main():
     async with websockets.serve(
         serve_websocket,
         "0.0.0.0",
-        8555,
+        8444,
         ping_interval=PING_INTERVAL,
         ping_timeout=PING_TIMEOUT,
         max_size=MAX_MESSAGE_SIZE,

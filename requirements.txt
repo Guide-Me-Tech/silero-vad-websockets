@@ -5,3 +5,4 @@ silero-vad
 requests
 python-dotenv
 aiohttp
+google-genai
