@@ -18,57 +18,61 @@ logger = logging.getLogger("websocket-test-client")
 async def send_audio_chunks(websocket, audio_file, chunk_size_ms=100):
     """Send audio chunks from a WAV file to the WebSocket server."""
     try:
-        with wave.open(audio_file, "rb") as wav_file:
-            # Get WAV file properties
-            channels = wav_file.getnchannels()
-            sample_width = wav_file.getsampwidth()
-            frame_rate = wav_file.getframerate()
-            n_frames = wav_file.getnframes()
+        for i in range(2):
+            with wave.open(audio_file, "rb") as wav_file:
+                # Get WAV file properties
+                channels = wav_file.getnchannels()
+                sample_width = wav_file.getsampwidth()
+                frame_rate = wav_file.getframerate()
+                n_frames = wav_file.getnframes()
 
-            logger.info(f"Audio file: {audio_file}")
-            logger.info(
-                f"Channels: {channels}, Sample width: {sample_width}, Frame rate: {frame_rate}"
-            )
-            logger.info(
-                f"Total frames: {n_frames}, Duration: {n_frames/frame_rate:.2f} seconds"
-            )
-
-            # Calculate frames per chunk based on milliseconds
-            frames_per_chunk = int(frame_rate * (chunk_size_ms / 1000))
-
-            # Send audio format information
-            await websocket.send(
-                json.dumps(
-                    {
-                        "type": "config",
-                        "sample_rate": frame_rate,
-                        "sample_width": sample_width,
-                        "channels": channels,
-                    }
-                )
-            )
-
-            # Read and send chunks
-            frames_sent = 0
-            while frames_sent < n_frames:
-                # Read a chunk of audio data
-                chunk_frames = min(frames_per_chunk, n_frames - frames_sent)
-                audio_data = wav_file.readframes(chunk_frames)
-                frames_sent += chunk_frames
-
-                # Send the chunk
-                await websocket.send(audio_data)
+                logger.info(f"Audio file: {audio_file}")
                 logger.info(
-                    f"Sent chunk: {len(audio_data)} bytes, {frames_sent}/{n_frames} frames"
+                    f"Channels: {channels}, Sample width: {sample_width}, Frame rate: {frame_rate}"
+                )
+                logger.info(
+                    f"Total frames: {n_frames}, Duration: {n_frames/frame_rate:.2f} seconds"
                 )
 
-                # Wait for the next chunk interval
-                await asyncio.sleep(chunk_size_ms / 1000)
+                # Calculate frames per chunk based on milliseconds
+                frames_per_chunk = int(frame_rate * (chunk_size_ms / 1000))
 
-            # Send end-of-stream marker
+                # Send audio format information
+                # await websocket.send(
+                #     json.dumps(
+                #         {
+                #             "type": "config",
+                #             "sample_rate": frame_rate,
+                #             "sample_width": sample_width,
+                #             "channels": channels,
+                #         }
+                #     )
+                # )
+
+                # Read and send chunks
+                frames_sent = 0
+                while frames_sent < n_frames:
+                    # Read a chunk of audio data
+                    chunk_frames = min(frames_per_chunk, n_frames - frames_sent)
+                    audio_data = wav_file.readframes(chunk_frames)
+                    frames_sent += chunk_frames
+
+                    # Send the chunk
+                    await websocket.send(audio_data)
+                    logger.info(
+                        f"Sent chunk: {len(audio_data)} bytes, {frames_sent}/{n_frames} frames"
+                    )
+
+                    # Wait for the next chunk interval
+                    await asyncio.sleep(chunk_size_ms / 1000)
+                
+                # Send end-of-stream marker
+            
             await websocket.send(json.dumps({"type": "eos"}))
             logger.info("Finished sending audio data")
-
+            await asyncio.sleep(10)
+            print("Sending again")
+           
     except Exception as e:
         logger.error(f"Error sending audio: {e}")
 
@@ -124,15 +128,19 @@ async def main():
             # Wait for sending to complete
             await send_task
 
-            # Wait a bit for final results
-            await asyncio.sleep(2)
-
-            # Cancel the receive task
-            receive_task.cancel()
             try:
-                await receive_task
-            except asyncio.CancelledError:
-                pass
+                # Keep connection open until keyboard interrupt
+                while True:
+                    await asyncio.sleep(1)
+            except KeyboardInterrupt:
+                logger.info("Received keyboard interrupt, closing connection...")
+            finally:
+                # Clean up receive task
+                receive_task.cancel()
+                try:
+                    await receive_task
+                except asyncio.CancelledError:
+                    pass
 
     except Exception as e:
         logger.error(f"Connection error: {e}")
